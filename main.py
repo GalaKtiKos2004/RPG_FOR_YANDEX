@@ -1,7 +1,7 @@
+import pygame
 import os
 import sys
-
-import pygame
+import random
 
 pygame.init()
 FPS = 60
@@ -10,6 +10,16 @@ pygame.time.set_timer(FRAME, 1000 // FPS)
 size = WIDTH, HEIGHT = 800, 600
 screen = pygame.display.set_mode(size)
 pygame.display.set_caption('ННП')
+
+"""
+. - трава
+# - дерево
+* - сундук(серебро)
+& - сундук (золото)
+@ - персонаж
+% - вода
+( - забор
+"""
 
 
 def load_image(name, colorkey=None):
@@ -41,38 +51,38 @@ class Ground(pygame.sprite.Sprite):
 
 
 class Pond(pygame.sprite.Sprite):
-    images_mid = 'sprites/water/watermid1'
-    images_top = 'sprites/water/watertop1'
-    images_bot = 'sprites/water/waterbot1'
-    images_left = 'sprites/water/waterleft1'
-    images_right = 'sprites/water/waterright1'
-    images_topleft = 'sprites/water/waterlefttop1'
-    images_topright = 'sprites/water/waterrighttop1'
-    images_botleft = 'sprites/water/waterleftbot1'
-    images_botright = 'sprites/water/waterrightbot1'
+    images_mid = ['sprites/water/watermid1']
+    images_top = ['sprites/water/watertop1']
+    images_bot = ['sprites/water/waterbot1']
+    images_left = ['sprites/water/waterleft1']
+    images_right = ['sprites/water/waterright1']
+    images_topleft = ['sprites/water/waterlefttop1']
+    images_topright = ['sprites/water/waterrighttop1']
+    images_botleft = ['sprites/water/waterleftbot1']
+    images_botright = ['sprites/water/waterrightbot1']
 
     def __init__(self, group, lft, rght, tp, bt, x, y):
         self.image_lst = []
         self.curr_frame = 0
         super().__init__(group)
         if lft and rght and tp and bt:
-            self.image_lst.append(self.images_mid)
-        if bt and rght and not (lft or tp):
-            self.image_lst.append(self.images_topleft)
-        if lft and rght and bt and not tp:
-            self.image_lst.append(self.images_top)
-        if bt and lft and not (rght or tp):
-            self.image_lst.append(self.images_topright)
-        if tp and bt and rght and not lft:
-            self.image_lst.append(self.images_left)
-        if lft and tp and bt and not rght:
-            self.image_lst.append(self.images_right)
-        if tp and rght and not (lft or bt):
-            self.image_lst.append(self.images_botleft)
-        if tp and lft and rght and not bt:
-            self.image_lst.append(self.images_bot)
+            self.image_lst = self.images_mid
+        elif bt and rght and not (lft or tp):
+            self.image_lst = self.images_topleft
+        elif lft and rght and bt and not tp:
+            self.image_lst = self.images_top
+        elif bt and lft and not (rght or tp):
+            self.image_lst = self.images_topright
+        elif tp and bt and rght and not lft:
+            self.image_lst = self.images_left
+        elif lft and tp and bt and not rght:
+            self.image_lst = self.images_right
+        elif tp and rght and not (lft or bt):
+            self.image_lst = self.images_botleft
+        elif tp and lft and rght and not bt:
+            self.image_lst = self.images_bot
         else:
-            self.image_lst.append(self.images_botright)
+            self.image_lst = self.images_botright
         self.image = load_image(self.image_lst[int(self.curr_frame)] + '.png')
         self.image = pygame.transform.scale(self.image, (32, 32))
         self.rect = pygame.Rect(x, y, 32, 32)
@@ -80,7 +90,7 @@ class Pond(pygame.sprite.Sprite):
         self.hitbox.x -= 16
         self.hitbox.width += 8
         self.hitbox.y -= 16
-        self.hitbox.height += 8
+        self.hitbox.height -= 8
         self.play_anim()
 
     def draw(self, screen):
@@ -116,8 +126,8 @@ class Fence(pygame.sprite.Sprite):
         super().__init__(group)
         if bt and not (lft or rght or up):
             self.image = load_image(self.images[0] + '.png')
-        if bt and rght and not up and not lft:
-            self.image = load_image(self.images[1] + 'png')
+        elif bt and rght and not up and not lft:
+            self.image = load_image(self.images[1] + '.png')
         elif lft and rght and not up and bt:
             self.image = load_image(self.images[2] + '.png')
         elif lft and bt and not (up or rght):
@@ -150,7 +160,32 @@ class Fence(pygame.sprite.Sprite):
         self.rect = pygame.Rect(x, y, 32, 32)
         self.hitbox = self.rect.copy()
         self.hitbox.x -= 8
-        self.hitbox.height -= 16
+        self.hitbox.height -= 24
+
+    def draw(self, dest):
+        dest.blit(self.image, self.rect)
+
+
+class Path(Fence):
+    images = ['sprites/paths/path1',
+              'sprites/paths/path2',
+              'sprites/paths/path3',
+              'sprites/paths/path4',
+              'sprites/paths/path5',
+              'sprites/paths/path6',
+              'sprites/paths/path7',
+              'sprites/paths/path8',
+              'sprites/paths/path9',
+              'sprites/paths/path10',
+              'sprites/paths/path11',
+              'sprites/paths/path12',
+              'sprites/paths/path13',
+              'sprites/paths/path14',
+              'sprites/paths/path15',
+              'sprites/paths/path16']
+
+    def __init__(self, group, lft, rght, up, bt, x, y):
+        super().__init__(group, lft, rght, up, bt, x, y)
 
     def draw(self, dest):
         dest.blit(self.image, self.rect)
@@ -208,7 +243,6 @@ class Chest(pygame.sprite.Sprite):
                 self.image = load_image(self.gold_anim[int(self.curr_frame)] + '.png')
             self.image = pygame.transform.scale(self.image, (32, 32))
             self.curr_frame += 0.2
-            print(self.curr_frame)
             if self.curr_frame >= 4:
                 self.opening = False
 
@@ -296,7 +330,7 @@ class Player(pygame.sprite.Sprite):
             self.check_rect.height += 10
 
             for chest in chests:
-                if chest.rect.colliderect(self.check_rect):
+                if chest.hitbox.colliderect(self.check_rect):
                     chest.open()
 
         self.prev = [self.is_running, self.is_idle]
@@ -338,6 +372,7 @@ if __name__ == '__main__':
     player = pygame.sprite.Group()
     ground = pygame.sprite.Group()
     entities = pygame.sprite.Group()
+    g = Ground(ground)
     with open('data/town.txt', 'r', encoding='utf-8') as file:
         file = file.readlines()
         for i in range(len(file)):
@@ -373,9 +408,19 @@ if __name__ == '__main__':
                         right = True
                     pond = Pond(entities, left, right, up, down, j * 32, i * 32)
                     blocks.append(pond)
+                if file[i][j] == '-':
+                    up = down = left = right = False
+                    if i > 0 and file[i - 1][j] == '-':
+                        up = True
+                    if i < len(file) - 1 and file[i + 1][j] == '-':
+                        down = True
+                    if j > 0 and file[i][j - 1] == '-':
+                        left = True
+                    if j < len(file[i]) and file[i][j + 1] == '-':
+                        right = True
+                    path = Path(ground, left, right, up, down, j * 32, i * 32)
 
     running = True
-    g = Ground(ground)
     a = Player(player, blocks, chests, 50, 70)
     all_groups.append(player)
     all_groups.append(entities)
