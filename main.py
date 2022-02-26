@@ -393,7 +393,7 @@ if __name__ == '__main__':
     ground = pygame.sprite.Group()
     entities = pygame.sprite.Group()
     g = Ground(ground)
-    with open('data/town.txt', 'r', encoding='utf-8') as file:
+    with open('data/plain.txt', 'r', encoding='utf-8') as file:
         file = file.readlines()
         for i in range(len(file)):
             for j in range(len(file[i].rstrip('\n'))):
@@ -498,3 +498,5 @@ if __name__ == '__main__':
                 pygame.display.update()
             if event.type == pygame.QUIT:
                 running = False
+    pygame.quit()
+    sys.exit()
