@@ -38,12 +38,35 @@ def load_image(name, colorkey=None):
     return image
 
 
+class Camera:
+    def __init__(self, player):
+        self.max_height = 1600
+        self.max_width = 1600
+        self.rect = pygame.Rect(0, 0, 1600, 1600)
+        self.player = player
+
+    def move(self, obj):
+        return obj.rect.move(self.rect.topleft)
+
+    def update(self):
+        left, top, _, _ = self.player.rect
+        _, _, w, h = self.rect
+        left, top = -left + WIDTH / 2, -top + HEIGHT / 2
+
+        left = min(0, left)
+        left = max(-(self.rect.width - WIDTH), left)
+        top = max(-(self.rect.height - HEIGHT), top)
+        top = min(0, top)
+
+        self.rect = pygame.Rect(left, top, w, h)
+
+
 class Ground(pygame.sprite.Sprite):
     image = load_image('sprites/ground/grass.png')
 
     def __init__(self, group):
         super().__init__(group)
-        self.image = pygame.transform.scale(self.image, (800, 600))
+        self.image = pygame.transform.scale(self.image, (1600, 1600))
         self.rect = pygame.Rect(0, 0, 800, 600)
 
     def draw(self, dest):
@@ -105,22 +128,7 @@ class Pond(pygame.sprite.Sprite):
 
 
 class Fence(pygame.sprite.Sprite):
-    images = ['sprites/fences/fence1',
-              'sprites/fences/fence2',
-              'sprites/fences/fence3',
-              'sprites/fences/fence4',
-              'sprites/fences/fence5',
-              'sprites/fences/fence6',
-              'sprites/fences/fence7',
-              'sprites/fences/fence8',
-              'sprites/fences/fence9',
-              'sprites/fences/fence10',
-              'sprites/fences/fence11',
-              'sprites/fences/fence12',
-              'sprites/fences/fence13',
-              'sprites/fences/fence14',
-              'sprites/fences/fence15',
-              'sprites/fences/fence16']
+    images = [f'sprites/fences/fence{i}' for i in range(1, 17)]
 
     def __init__(self, group, lft, rght, up, bt, x, y):
         super().__init__(group)
@@ -167,22 +175,7 @@ class Fence(pygame.sprite.Sprite):
 
 
 class Path(Fence):
-    images = ['sprites/paths/path1',
-              'sprites/paths/path2',
-              'sprites/paths/path3',
-              'sprites/paths/path4',
-              'sprites/paths/path5',
-              'sprites/paths/path6',
-              'sprites/paths/path7',
-              'sprites/paths/path8',
-              'sprites/paths/path9',
-              'sprites/paths/path10',
-              'sprites/paths/path11',
-              'sprites/paths/path12',
-              'sprites/paths/path13',
-              'sprites/paths/path14',
-              'sprites/paths/path15',
-              'sprites/paths/path16']
+    images = [f'sprites/paths/path{i}' for i in range(1, 17)]
 
     def __init__(self, group, lft, rght, up, bt, x, y):
         super().__init__(group, lft, rght, up, bt, x, y)
@@ -190,10 +183,10 @@ class Path(Fence):
     def draw(self, dest):
         dest.blit(self.image, self.rect)
 
-
 class Chest(pygame.sprite.Sprite):
     golden_image = load_image('sprites/chest_anim/golden_chest/chest1.png')
     silver_image = load_image('sprites/chest_anim/silver_chest/chest1.png')
+
 
     def __init__(self, group, x, y):
         super().__init__(group)
@@ -322,6 +315,19 @@ class Player(pygame.sprite.Sprite):
         elif xs > 0:
             self.direction = 1
 
+        if self.rect.bottom > 1600:
+            self.rect.bottom = 1600
+            ys  = 0
+        elif self.rect.top < 0:
+            self.rect.top = 0
+            ys = 0
+        if self.rect.left < 0:
+            self.rect.left = 0
+            xs = 0
+        elif self.rect.right > 1600:
+            self.rect.right = 1600
+            xs = 0
+
         if opening:
             self.check_rect = self.rect.copy()
             self.check_rect.x -= 5
@@ -365,6 +371,20 @@ class Player(pygame.sprite.Sprite):
                 self.curr_frame = 0
 
 
+class GroundDecor(pygame.sprite.Sprite):
+    def __init__(self, group, x, y):
+        super().__init__(group)
+        self.x = x
+        self.y = y
+        self.rect = pygame.Rect(x, y, 16, 16)
+        self.img = [f'sprites/ground_decor/decor{i}.png' for i in range(1, 17)]
+        self.image = load_image(random.choice(self.img))
+        self.image = pygame.transform.scale(self.image, (32, 32))
+
+    def draw(self, dest):
+        dest.blit(self.image, self.rect)
+
+
 if __name__ == '__main__':
     blocks = []
     chests = []
@@ -380,11 +400,11 @@ if __name__ == '__main__':
                 if file[i][j] == '#':
                     tree = Block(entities, j * 32, i * 32)
                     blocks.append(tree)
-                if file[i][j] == '*':
+                elif file[i][j] == '*':
                     chest = Chest(entities, j * 32, i * 32)
                     blocks.append(chest)
                     chests.append(chest)
-                if file[i][j] == '(':
+                elif file[i][j] == '(':
                     up = down = left = right = False
                     if i > 0 and file[i - 1][j] == '(':
                         up = True
@@ -396,7 +416,7 @@ if __name__ == '__main__':
                         right = True
                     fence = Fence(entities, left, right, up, down, j * 32, i * 32)
                     blocks.append(fence)
-                if file[i][j] == '%':
+                elif file[i][j] == '%':
                     up = down = left = right = False
                     if i > 0 and file[i - 1][j] == '%':
                         up = True
@@ -408,7 +428,7 @@ if __name__ == '__main__':
                         right = True
                     pond = Pond(entities, left, right, up, down, j * 32, i * 32)
                     blocks.append(pond)
-                if file[i][j] == '-':
+                elif file[i][j] == '-':
                     up = down = left = right = False
                     if i > 0 and file[i - 1][j] == '-':
                         up = True
@@ -419,9 +439,14 @@ if __name__ == '__main__':
                     if j < len(file[i]) and file[i][j + 1] == '-':
                         right = True
                     path = Path(ground, left, right, up, down, j * 32, i * 32)
+                elif file[i][j] == '.':
+                    if random.randint(1, 100) < 16:
+                        decor = GroundDecor(ground, j * 32, i * 32)
+
 
     running = True
     a = Player(player, blocks, chests, 50, 70)
+    c = Camera(a)
     all_groups.append(player)
     all_groups.append(entities)
     blocks.sort(key=lambda x: x.hitbox.bottom)
@@ -465,8 +490,11 @@ if __name__ == '__main__':
                         else:
                             new_lst.append(elem)
                     order = new_lst
+                for sprite in ground:
+                    screen.blit(sprite.image, c.move(sprite))
                 for sprite in order:
-                    sprite.draw(screen)
+                    screen.blit(sprite.image, c.move(sprite))
+                c.update()
                 pygame.display.update()
             if event.type == pygame.QUIT:
                 running = False
