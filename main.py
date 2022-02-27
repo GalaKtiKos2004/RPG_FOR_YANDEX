@@ -1,8 +1,9 @@
-import pygame
 import os
-import sys
 import random
+import sys
 import time
+
+import pygame
 
 pygame.init()
 FPS = 60
@@ -39,6 +40,26 @@ def load_image(name, colorkey=None):
     return image
 
 
+class Dust(pygame.sprite.Sprite):
+    def __init__(self, group, x, y):
+        super().__init__(group)
+        self.dust_anim = ['sprites/dust/dust1.png',
+                          'sprites/dust/dust2.png',
+                          'sprites/dust/dust3.png']
+        self.rect = pygame.Rect(x, y, 12, 12)
+        self.curr_frame = 0
+        self.play_anim()
+
+    def play_anim(self):
+        self.image = pygame.transform.scale(load_image(self.dust_anim[int(self.curr_frame)]), (48, 48))
+        self.curr_frame += 0.1
+        if self.curr_frame >= 3:
+            self.kill()
+
+    def draw(self, dest, camera):
+        dest.blit(self.image, camera.move(self.rect))
+
+
 class Item(pygame.sprite.Sprite):
     helmet_sprites = [load_image(f"sprites/helmets/Item__{i}.png") for i in range(44, 48)]
     acces_sprites = [load_image(f"sprites/accessories/Item__{i}.png") for i in range(40, 44)]
@@ -47,34 +68,60 @@ class Item(pygame.sprite.Sprite):
     armor_sprites = [load_image(f"sprites/armor/Item__{i}.png") for i in range(56, 60)]
     shield_sprites = [load_image(f"sprites/shields/Item__{i}.png") for i in range(24, 28)]
 
-    def __init__(self, group, type, rarity):
+    def __init__(self, group, type, rarity, lvl):
         super().__init__(group)
         self.type = type
+        self.level = lvl
         self.rank = rarity
+        self.rank_int = ['common', 'uncommon', 'rare', 'epic', 'legendary'].index(self.rank) + 1
         if self.type == 'weap':
+
+            self.dmg_avg = 10 + self.level * self.rank_int ** 1.5
+            self.end_dmg = random.randint((self.dmg_avg * 0.85) // 1, (self.dmg_avg * 1.15) // 1)
+            self.random_stat = 0
+
             if self.rank in ['epic', 'legendary']:
                 self.image = random.choice(self.weapons_rare_sprites)
                 self.image = pygame.transform.scale(self.image, (40, 40))
+                self.random_stat = self.level * self.rank_int // 4
+                self.stat_type = random.choice(['Strength', 'Agility'])
             else:
                 self.image = random.choice(self.weapons_sprites)
                 self.image = pygame.transform.scale(self.image, (40, 40))
+
         elif self.type == 'accs':
             self.image = random.choice(self.acces_sprites)
             self.image = pygame.transform.scale(self.image, (40, 40))
+
         elif self.type == 'helm':
             self.image = random.choice(self.helmet_sprites)
             self.image = pygame.transform.scale(self.image, (40, 40))
-        elif self.type ==  'shld':
+
+        elif self.type == 'shld':
             self.image = random.choice(self.shield_sprites)
             self.image = pygame.transform.scale(self.image, (40, 40))
+
         elif self.type == 'armr':
             self.image = random.choice(self.armor_sprites)
-            self.image = pygame.transform.scale(self.image, (48, 48))
+            self.image = pygame.transform.scale(self.image, (40, 40))
+
         self.image = pygame.transform.flip(self.image, True, False)
         self.rect = pygame.Rect(440, 145, 48, 48)  # X: + 51, Y: + 54
 
-    def draw(self, dest):
-        dest.blit(self.image, self.rect)
+    def draw(self, dest, row, col):
+        r_t_d = self.rect.copy()
+        r_t_d.x += col * 51
+        r_t_d.y += row * 54
+        dest.blit(self.image, r_t_d)
+
+    def get_desc(self):
+        if self.type == 'weap':
+            info_lst = [f"Damage: {self.end_dmg}"]
+            if self.random_stat != 0:
+                info_lst.append(f"{self.stat_type}: {self.random_stat}")
+        elif self.type == 'armr':
+            info_lst = [f"asdasdas"]
+        return info_lst
 
 
 class Camera:
@@ -318,6 +365,7 @@ class StatusBar(pygame.sprite.Sprite):
         dest.blit(self.mana_bar, self.mana_bar_rect)
         dest.blit(self.mana_border, self.mana_border_rect)
 
+
 class Block(pygame.sprite.Sprite):
     tree_img = pygame.transform.scale(load_image('sprites/trees/tree.png'), (96, 128))
 
@@ -334,11 +382,18 @@ class Block(pygame.sprite.Sprite):
 
 
 class Player(pygame.sprite.Sprite):
-    def __init__(self, group, blocks, chests, x, y):
+    def __init__(self, group, gr, blocks, chests, x, y, level=1):
         super().__init__(group)
         self.col = self.row = 0
+        self.level = level
+        self.ground = gr
         self.inventory = pygame.sprite.Group()
-        Item(self.inventory, 'weap', 'rare')
+        self.inv_lst = []
+        self.prev_dust = time.time()
+        itm = Item(self.inventory, 'weap', 'legendary', 10)
+        itm2 = Item(self.inventory, 'armr', 'rare', 1)
+        self.inv_lst.append(itm)
+        self.inv_lst.append(itm2)
         self.rect = pygame.Rect(300, 300, 25, 25)
         self.prev_y_change = time.time()
         self.prev_x_change = time.time()
@@ -380,7 +435,6 @@ class Player(pygame.sprite.Sprite):
             self.inventory_rect.right = min(camera.move(self.inventory_rect).right, 1600)
             dest.blit(self.inventory_image, self.inventory_rect)
 
-
     def update(self, lft, rght, tp, bt, shift, opening, inv, c_i):
         if not self.inventory_opened:
 
@@ -389,6 +443,7 @@ class Player(pygame.sprite.Sprite):
             if inv:
                 self.open_inventory()
                 self.inventory_opened = True
+                self.col = self.row = 0
                 return
 
             self.is_sprinting = False
@@ -466,24 +521,32 @@ class Player(pygame.sprite.Sprite):
                 if time.time() - self.prev_y_change > 0.3:
                     self.row = max(self.row - 1, 0)
                     self.prev_y_change = time.time()
+                    if len(self.inv_lst) - 1 >= self.col + self.row * 5:
+                        print(self.inv_lst[self.col + self.row * 5].get_desc())
 
             if bt:
                 if time.time() - self.prev_y_change > 0.3:
                     self.row = min(self.row + 1, 2)
                     self.prev_y_change = time.time()
+                    if len(self.inv_lst) - 1 >= self.col + self.row * 5:
+                        print(self.inv_lst[self.col + self.row * 5].get_desc())
 
             if lft:
                 if time.time() - self.prev_x_change > 0.3:
                     self.col = max(self.col - 1, 0)
                     self.prev_x_change = time.time()
+                    if len(self.inv_lst) - 1 >= self.col + self.row * 5:
+                        print(self.inv_lst[self.col + self.row * 5].get_desc())
 
             if rght:
                 if time.time() - self.prev_x_change > 0.3:
-                    self.col = min(self. col + 1, 4)
+                    self.col = min(self.col + 1, 4)
                     self.prev_x_change = time.time()
+                    if len(self.inv_lst) - 1 >= self.col + self.row * 5:
+                        print(self.inv_lst[self.col + self.row * 5].get_desc())
 
             self.sel_rect = pygame.Rect(435 + 51 * self.col, 142 + 54 * self.row, 70, 70)
-
+            self.is_sprinting = False
             self.prev = [self.is_running, self.is_idle]
 
             if xs == ys == 0:
@@ -493,6 +556,11 @@ class Player(pygame.sprite.Sprite):
             else:
                 self.is_idle = False
                 self.is_running = True
+        if self.is_sprinting and self.is_running:
+            if time.time() - self.prev_dust > 0.2:
+                x_of_rect = self.rect.left - 8 if self.direction == 1 else self.rect.right - 10
+                dust = Dust(self.ground, x_of_rect, a.rect.bottom - 12)
+                self.prev_dust = time.time()
 
         self.play_anim()
 
@@ -503,7 +571,7 @@ class Player(pygame.sprite.Sprite):
             self.image = pygame.transform.scale(load_image(self.idle_anim[int(self.curr_frame)] + '.png'), (48, 48))
             if self.direction == -1:
                 self.image = pygame.transform.flip(self.image, True, False)
-            self.curr_frame += 0.1 * (2 if self.is_sprinting else 1)
+            self.curr_frame += 0.1
             if self.curr_frame >= len(self.idle_anim):
                 self.curr_frame = 0
 
@@ -511,13 +579,15 @@ class Player(pygame.sprite.Sprite):
             self.image = pygame.transform.scale(load_image(self.running_anim[int(self.curr_frame)] + '.png'), (48, 48))
             if self.direction == -1:
                 self.image = pygame.transform.flip(self.image, True, False)
-            self.curr_frame += 0.1
+            self.curr_frame += 0.1 * (1.5 if self.is_sprinting else 1)
             if self.curr_frame >= len(self.running_anim):
                 self.curr_frame = 0
 
     def open_inventory(self):
         self.inventory_rect = pygame.Rect(400, 0, 312, 500)
         self.inventory_image = pygame.transform.scale(self.inventory_image, (330, 550))
+        if len(self.inv_lst):
+            print(self.inv_lst[0].get_desc())
 
     def close_inventory(self):
         self.inventory_rect = None
@@ -549,7 +619,7 @@ class Enemy(pygame.sprite.Sprite):
         self.hitbox.width -= 16
         self.curr_frame = 0
         if name == 'skeleton':
-            self.frames = [load_image(f"sprites/skeleton/skeleton{i}.png") for i in range(1,7)]
+            self.frames = [load_image(f"sprites/skeleton/skeleton{i}.png") for i in range(1, 7)]
             self.image = self.frames[self.curr_frame]
         self.image = pygame.transform.scale(self.image, (96, 96))
 
@@ -631,7 +701,7 @@ if __name__ == '__main__':
                     blocks.append(skelet)
 
     running = True
-    a = Player(player, blocks, chests, 50, 70)
+    a = Player(player, ground, blocks, chests, 50, 70)
     c = Camera(a)
     gui = pygame.sprite.Group()
     hpbar = StatusBar(gui, a)
@@ -644,7 +714,12 @@ if __name__ == '__main__':
                 order = []
                 bot = right = left = top = accel = openn = inventory = close_inv = False
                 pressed_keys = pygame.key.get_pressed()
-                ground.draw(screen)
+                for sprite in ground:
+                    if isinstance(sprite, Dust):
+                        sprite.play_anim()
+                        sprite.draw(screen, c)
+                    else:
+                        screen.blit(sprite.image, c.move(sprite))
                 if pressed_keys[pygame.K_LEFT]:
                     left = True
                 if pressed_keys[pygame.K_UP]:
@@ -697,8 +772,8 @@ if __name__ == '__main__':
                     sprite.draw(screen)
                 if a.inventory_opened:
                     screen.blit(a.inventory_image, a.inventory_rect)
-                    for sprite in a.inventory:
-                        sprite.draw(screen)
+                    for num, item in enumerate(a.inv_lst):
+                        item.draw(screen, num // 5, num % 5)
                     screen.blit(a.selection_line, a.sel_rect)
                 pygame.display.update()
             if event.type == pygame.QUIT:
