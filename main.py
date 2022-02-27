@@ -1,9 +1,10 @@
-import os
-import random
-import sys
-import time
-
 import pygame
+import os
+import sys
+import random
+import time
+import sqlite3
+
 
 pygame.init()
 FPS = 60
@@ -121,6 +122,12 @@ class Item(pygame.sprite.Sprite):
                 info_lst.append(f"{self.stat_type}: {self.random_stat}")
         elif self.type == 'armr':
             info_lst = [f"asdasdas"]
+        elif self.type == 'accs':
+            info_lst = [f"негры"]
+        elif self.type == 'shld':
+            info_lst = [f"zxczxc"]
+        elif self.type == 'helm':
+            info_lst = [f"zxczxc13123"]
         return info_lst
 
 
@@ -385,13 +392,20 @@ class Player(pygame.sprite.Sprite):
     def __init__(self, group, gr, blocks, chests, x, y, level=1):
         super().__init__(group)
         self.col = self.row = 0
+        self.font = pygame.font.Font('font/m6x11.ttf', 20)
         self.level = level
         self.ground = gr
         self.inventory = pygame.sprite.Group()
         self.inv_lst = []
         self.prev_dust = time.time()
-        itm = Item(self.inventory, 'weap', 'legendary', 10)
-        itm2 = Item(self.inventory, 'armr', 'rare', 1)
+        self.weapon = self.armor = self.accessory = self.shield = self.helmet = None
+        self.weap_r = pygame.Rect(440, 480 ,31 ,31)
+        self.armr_r = pygame.Rect(542, 480, 31, 31)
+        self.accs_r = pygame.Rect(644, 480, 31, 31)
+        self.shld_r = pygame.Rect(491, 480, 31, 31)
+        self.helm_r = pygame.Rect(593, 480, 31, 31)
+        itm = Item(self.inventory, 'weap', 'common', 10)
+        itm2 = Item(self.inventory, 'armr', 'legendary', 10)
         self.inv_lst.append(itm)
         self.inv_lst.append(itm2)
         self.rect = pygame.Rect(300, 300, 25, 25)
@@ -401,8 +415,12 @@ class Player(pygame.sprite.Sprite):
         self.selection_line = pygame.transform.scale(self.selection_line, (48, 48))
         self.sel_rect = pygame.Rect(435, 142, 70, 70)
         self.curr_hp = 100
+        self.prev_enter_press = time.time()
         self.curr_mana = 100
+        self.prev_esc_press = time.time()
         self.max_hp = 100
+        self.curr_choice = 0
+        self.two_choices = False
         self.max_mana = 100
         self.blocks = blocks
         self.chests = chests
@@ -410,7 +428,7 @@ class Player(pygame.sprite.Sprite):
         self.is_running = False
         self.is_sprinting = False
         self.inventory_opened = False
-        self.inventory_image = load_image('sprites/inv/inventory.png')
+        self.inventory_image = load_image('sprites/inv/inventory.png', colorkey= (255, 255, 255))
         self.curr_frame = 0
         self.x = x
         self.y = y
@@ -434,6 +452,7 @@ class Player(pygame.sprite.Sprite):
         if self.inventory_opened:
             self.inventory_rect.right = min(camera.move(self.inventory_rect).right, 1600)
             dest.blit(self.inventory_image, self.inventory_rect)
+
 
     def update(self, lft, rght, tp, bt, shift, opening, inv, c_i):
         if not self.inventory_opened:
@@ -512,40 +531,151 @@ class Player(pygame.sprite.Sprite):
                     if chest.hitbox.colliderect(self.check_rect):
                         chest.open()
         else:
-            if c_i:
-                self.inventory_opened = False
-                self.close_inventory()
+            if c_i and time.time() - self.prev_esc_press > 0.3:
+                if self.two_choices:
+                    self.two_choices = False
+                    self.selection_line = load_image('sprites/outline/outline.png', colorkey=(255, 255, 255))
+                    self.selection_line = pygame.transform.scale(self.selection_line, (48, 48))
+                    self.row = self.col = 0
+                else:
+                    self.inventory_opened = False
+                    self.close_inventory()
+                self.prev_esc_press = time.time()
 
             xs = ys = 0
             if tp:
-                if time.time() - self.prev_y_change > 0.3:
+                if self.two_choices:
+                    if time.time() - self.prev_y_change >= 0.3:
+                        self.row = max(self.row - 1, 0)
+                        self.prev_y_change = time.time()
+                elif time.time() - self.prev_y_change > 0.3:
                     self.row = max(self.row - 1, 0)
                     self.prev_y_change = time.time()
                     if len(self.inv_lst) - 1 >= self.col + self.row * 5:
-                        print(self.inv_lst[self.col + self.row * 5].get_desc())
+                        self.curr_item_info = self.inv_lst[self.col + self.row * 5].get_desc()
+                    else:
+                        self.curr_item_info = []
 
             if bt:
-                if time.time() - self.prev_y_change > 0.3:
+                if self.two_choices:
+                    if time.time() - self.prev_y_change >= 0.3:
+                        self.row = min(self.row + 1, 1)
+                        self.prev_y_change = time.time()
+                elif time.time() - self.prev_y_change > 0.3:
                     self.row = min(self.row + 1, 2)
                     self.prev_y_change = time.time()
                     if len(self.inv_lst) - 1 >= self.col + self.row * 5:
-                        print(self.inv_lst[self.col + self.row * 5].get_desc())
+                        self.curr_item_info = self.inv_lst[self.col + self.row * 5].get_desc()
+                    else:
+                        self.curr_item_info = []
 
             if lft:
-                if time.time() - self.prev_x_change > 0.3:
-                    self.col = max(self.col - 1, 0)
-                    self.prev_x_change = time.time()
-                    if len(self.inv_lst) - 1 >= self.col + self.row * 5:
-                        print(self.inv_lst[self.col + self.row * 5].get_desc())
+                if self.two_choices:
+                    pass
+                else:
+                    if time.time() - self.prev_x_change > 0.3:
+                        self.col = max(self.col - 1, 0)
+                        self.prev_x_change = time.time()
+                        if len(self.inv_lst) - 1 >= self.col + self.row * 5:
+                            self.curr_item_info = self.inv_lst[self.col + self.row * 5].get_desc()
+                        else:
+                            self.curr_item_info = []
+
 
             if rght:
-                if time.time() - self.prev_x_change > 0.3:
-                    self.col = min(self.col + 1, 4)
-                    self.prev_x_change = time.time()
-                    if len(self.inv_lst) - 1 >= self.col + self.row * 5:
-                        print(self.inv_lst[self.col + self.row * 5].get_desc())
+                if self.two_choices:
+                    pass
+                else:
+                    if time.time() - self.prev_x_change > 0.3:
+                        self.col = min(self.col + 1, 4)
+                        self.prev_x_change = time.time()
+                        if len(self.inv_lst) - 1 >= self.col + self.row * 5:
+                            self.curr_item_info = self.inv_lst[self.col + self.row * 5].get_desc()
+                        else:
+                            self.curr_item_info = []
 
-            self.sel_rect = pygame.Rect(435 + 51 * self.col, 142 + 54 * self.row, 70, 70)
+            if opening:
+                if self.two_choices:
+                    if time.time() - self.prev_enter_press >= 0.3:
+                        if self.row == 1:
+                            self.inv_lst.remove(self.inv_lst[self.sel_r * 5 + self.sel_c])
+                            self.two_choices = False
+                            self.selection_line = load_image('sprites/outline/outline.png', colorkey=(255, 255, 255))
+                            self.selection_line = pygame.transform.scale(self.selection_line, (48, 48))
+                            self.row = self.col = 0
+                            if len(self.inv_lst):
+                                self.curr_item_info = self.inv_lst[0].get_desc()
+                            else:
+                                self.curr_item_info = []
+
+                        elif self.row == 0:
+                            tmp = self.inv_lst[self.sel_r * 5 + self.sel_c]
+                            if tmp.type == 'weap':
+                                if self.weapon is None:
+                                    self.weapon = tmp
+                                    self.inv_lst.remove(tmp)
+                                else:
+                                    mem = self.weapon
+                                    self.weapon = tmp
+                                    self.inv_lst[self.sel_r * 5 + self.sel_c] = mem
+                            elif tmp.type == 'accs':
+                                if self.accessory is None:
+                                    self.accessory = tmp
+                                    self.inv_lst.remove(tmp)
+                                else:
+                                    mem = self.accessory
+                                    self.accessory = tmp
+                                    self.inv_lst[self.sel_r * 5 + self.sel_c] = mem
+                            elif tmp.type == 'armr':
+                                if self.armor is None:
+                                    self.armor = tmp
+                                    self.inv_lst.remove(tmp)
+                                else:
+                                    mem = self.armor
+                                    self.armor = tmp
+                                    self.inv_lst[self.sel_r * 5 + self.sel_c] = mem
+                            elif tmp.type == 'helm':
+                                if self.helmet is None:
+                                    self.helmet = tmp
+                                    self.inv_lst.remove(tmp)
+                                else:
+                                    mem = self.helmet
+                                    self.helmet = tmp
+                                    self.inv_lst[self.sel_r * 5 + self.sel_c] = mem
+                            elif tmp.type == 'shld':
+                                if self.shield is None:
+                                    self.shield = tmp
+                                    self.inv_lst.remove(tmp)
+                                else:
+                                    mem = self.shield
+                                    self.shield = tmp
+                                    self.inv_lst[self.sel_r * 5 + self.sel_c] = mem
+                            self.two_choices = False
+                            self.selection_line = load_image('sprites/outline/outline.png', colorkey=(255, 255, 255))
+                            self.selection_line = pygame.transform.scale(self.selection_line, (48, 48))
+                            self.row = self.col = 0
+                            if len(self.inv_lst):
+                                self.curr_item_info = self.inv_lst[0].get_desc()
+                            else:
+                                self.curr_item_info = []
+
+                        self.prev_enter_press = time.time() + 0.2
+                elif time.time() - self.prev_enter_press > 0.3 and len(self.inv_lst) - 1 >= self.col + self.row * 5:
+                    self.selection_line = load_image('sprites/outline/bot_outline.png', colorkey=(255, 255, 255))
+                    self.selection_line = pygame.transform.scale(self.selection_line, (70, 35))
+                    self.two_choices = True
+                    self.prev_enter_press = time.time()
+                    self.sel_r = self.row
+                    self.sel_c = self.col
+                    self.row = 0
+                    self.col = 0
+
+            self.text_rect = pygame.Rect(400, 400, 400, 400)
+
+            if self.two_choices:
+                self.sel_rect = pygame.Rect(622, 335 + 34 * self.row, 70, 70)
+            else:
+                self.sel_rect = pygame.Rect(435 + 51 * self.col, 142 + 54 * self.row, 70, 70)
             self.is_sprinting = False
             self.prev = [self.is_running, self.is_idle]
 
@@ -557,8 +687,8 @@ class Player(pygame.sprite.Sprite):
                 self.is_idle = False
                 self.is_running = True
         if self.is_sprinting and self.is_running:
-            if time.time() - self.prev_dust > 0.2:
-                x_of_rect = self.rect.left - 8 if self.direction == 1 else self.rect.right - 10
+            if time.time() - self.prev_dust > 0.15:
+                x_of_rect = self.rect.left - 8 if self.direction == 1 else self.rect.right - 8
                 dust = Dust(self.ground, x_of_rect, a.rect.bottom - 12)
                 self.prev_dust = time.time()
 
@@ -584,14 +714,27 @@ class Player(pygame.sprite.Sprite):
                 self.curr_frame = 0
 
     def open_inventory(self):
+        self.two_choices = False
         self.inventory_rect = pygame.Rect(400, 0, 312, 500)
         self.inventory_image = pygame.transform.scale(self.inventory_image, (330, 550))
         if len(self.inv_lst):
-            print(self.inv_lst[0].get_desc())
+            self.curr_item_info = self.inv_lst[0].get_desc()
 
     def close_inventory(self):
         self.inventory_rect = None
         self.inventory_opened = False
+
+    def draw_desc(self, dest):
+        if self.curr_item_info:
+            text_coord = 320
+            for line in self.curr_item_info:
+                string_rendered = self.font.render(line, 1, pygame.Color('white'))
+                intro_rect = string_rendered.get_rect()
+                text_coord += 10
+                intro_rect.top = text_coord
+                intro_rect.x = 440
+                text_coord += intro_rect.height
+                dest.blit(string_rendered, intro_rect)
 
 
 class GroundDecor(pygame.sprite.Sprite):
@@ -775,6 +918,17 @@ if __name__ == '__main__':
                     for num, item in enumerate(a.inv_lst):
                         item.draw(screen, num // 5, num % 5)
                     screen.blit(a.selection_line, a.sel_rect)
+                    if a.weapon is not None:
+                        screen.blit(a.weapon.image, a.weap_r)
+                    if a.shield is not None:
+                        screen.blit(a.shield.image, a.shld_r)
+                    if a.accessory is not None:
+                        screen.blit(a.accessory.image, a.accs_r)
+                    if a.armor is not None:
+                        screen.blit(a.armor.image, a.armr_r)
+                    if a.helmet is not None:
+                        screen.blit(a.helmet.image, a.helm_r)
+                    a.draw_desc(screen)
                 pygame.display.update()
             if event.type == pygame.QUIT:
                 pygame.quit()
