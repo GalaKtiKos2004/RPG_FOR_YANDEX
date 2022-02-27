@@ -5,7 +5,7 @@ import random
 import time
 
 pygame.init()
-FPS = 45
+FPS = 60
 FRAME = pygame.USEREVENT + 3
 pygame.time.set_timer(FRAME, 1000 // FPS)
 size = WIDTH, HEIGHT = 800, 600
