@@ -5,6 +5,8 @@ import random
 import time
 import sqlite3
 
+con = sqlite3.connect("inventory.sqlite3")
+cur = con.cursor()
 
 pygame.init()
 FPS = 60
@@ -72,39 +74,72 @@ class Item(pygame.sprite.Sprite):
     def __init__(self, group, type, rarity, lvl):
         super().__init__(group)
         self.type = type
+        self.coef = 0
         self.level = lvl
         self.rank = rarity
+        self.bonus = 1
         self.rank_int = ['common', 'uncommon', 'rare', 'epic', 'legendary'].index(self.rank) + 1
         if self.type == 'weap':
 
-            self.dmg_avg = 10 + self.level * self.rank_int ** 1.5
-            self.end_dmg = random.randint((self.dmg_avg * 0.85) // 1, (self.dmg_avg * 1.15) // 1)
+            self.end_dmg = 0
             self.random_stat = 0
 
             if self.rank in ['epic', 'legendary']:
-                self.image = random.choice(self.weapons_rare_sprites)
+                result = cur.execute("""select direct, rare, damage from weapons
+                where rare = 'el'
+                order by damage""").fetchall()
+                result = random.choice(result)
+                image = load_image(result[0])
+                self.image = image
                 self.image = pygame.transform.scale(self.image, (40, 40))
                 self.random_stat = self.level * self.rank_int // 4
                 self.stat_type = random.choice(['Strength', 'Agility'])
+                self.end_dmg = result[2]
             else:
-                self.image = random.choice(self.weapons_sprites)
+                result = cur.execute("""select direct, rare, damage from weapons
+                                where rare = 'cur'
+                                order by damage""").fetchall()
+                result = random.choice(result)
+                image = load_image(result[0])
+                self.image = image
                 self.image = pygame.transform.scale(self.image, (40, 40))
+                self.end_dmg = result[2]
 
         elif self.type == 'accs':
-            self.image = random.choice(self.acces_sprites)
+            result = cur.execute(f"""select direct, coef from accessories
+            where rare = '{self.rank}'
+order by coef""").fetchall()
+            image = load_image(result[0][0])
+            self.image = image
             self.image = pygame.transform.scale(self.image, (40, 40))
+            self.bonus = result[0][1]
 
         elif self.type == 'helm':
-            self.image = random.choice(self.helmet_sprites)
+            result = cur.execute(f"""select direct, coef from helmets
+                        where rare = '{self.rank}'
+            order by coef""").fetchall()
+            image = load_image(result[0][0])
+            self.image = image
             self.image = pygame.transform.scale(self.image, (40, 40))
+            self.coef = result[0][1]
 
         elif self.type == 'shld':
-            self.image = random.choice(self.shield_sprites)
+            result = cur.execute(f"""select direct, coef from shields
+                        where rare = '{self.rank}'
+            order by coef""").fetchall()
+            image = load_image(result[0][0])
+            self.image = image
             self.image = pygame.transform.scale(self.image, (40, 40))
+            self.coef = result[0][1]
 
         elif self.type == 'armr':
-            self.image = random.choice(self.armor_sprites)
+            result = cur.execute(f"""select direct, coef from armor
+                        where rare = '{self.rank}'
+            order by coef""").fetchall()
+            image = load_image(result[0][0])
+            self.image = image
             self.image = pygame.transform.scale(self.image, (40, 40))
+            self.coef = result[0][1]
 
         self.image = pygame.transform.flip(self.image, True, False)
         self.rect = pygame.Rect(440, 145, 48, 48)  # X: + 51, Y: + 54
@@ -121,13 +156,14 @@ class Item(pygame.sprite.Sprite):
             if self.random_stat != 0:
                 info_lst.append(f"{self.stat_type}: {self.random_stat}")
         elif self.type == 'armr':
-            info_lst = [f"asdasdas"]
+            info_lst = [f"Defence: {int(self.coef * self.level ** 1.5)}"]
         elif self.type == 'accs':
-            info_lst = [f"негры"]
+            info_lst = [f"Damage Bonus: {abs((1 - self.bonus) * 100)}%"]
         elif self.type == 'shld':
-            info_lst = [f"zxczxc"]
+            info_lst = [f"Defence: {int(self.coef * self.level ** 1.5)}"]
         elif self.type == 'helm':
-            info_lst = [f"zxczxc13123"]
+            info_lst = [f"Defence: {int(self.coef * self.level ** 1.5)}"]
+        info_lst.append(f"Rarity: {self.rank.capitalize()}")
         return info_lst
 
 
@@ -283,9 +319,10 @@ class Chest(pygame.sprite.Sprite):
     golden_image = load_image('sprites/chest_anim/golden_chest/chest1.png')
     silver_image = load_image('sprites/chest_anim/silver_chest/chest1.png')
 
-    def __init__(self, group, x, y, rank):
+    def __init__(self, group, x, y, rank, player):
         super().__init__(group)
         self.curr_frame = 0
+        self.player = player
         self.x = x
         self.y = y
         self.closed = True
@@ -322,6 +359,7 @@ class Chest(pygame.sprite.Sprite):
             self.closed = False
             self.opening = True
             self.animate()
+            self.invent()
 
     def animate(self):
         if self.opening:
@@ -333,6 +371,72 @@ class Chest(pygame.sprite.Sprite):
             self.curr_frame += 0.2
             if self.curr_frame >= 4:
                 self.opening = False
+
+    def invent(self):
+        itm = 'не подчеркивай желтым, пожалуйста'
+        x = random.randint(1, 100)
+        y = random.randint(1, 5)
+        if self.rank:
+            if y == 1:
+                if x < 76:
+                    itm = Item(self.player.inventory, 'accs', 'rare', 10)
+                else:
+                    itm = Item(self.player.inventory, 'accs', 'epic', 10)
+
+            if y == 2:
+                if x < 80:
+                    itm = Item(self.player.inventory, 'weap', 'rare', 10)
+                elif 80 < x < 98:
+                    itm = Item(self.player.inventory, 'weap', 'epic', 10)
+                else:
+                    itm = Item(self.player.inventory, 'weap', 'legendary', 10)
+
+            if y == 3:
+                if x < 76:
+                    itm = Item(self.player.inventory, 'helm', 'rare', 10)
+                else:
+                    itm = Item(self.player.inventory, 'helm', 'epic', 10)
+            if y == 4:
+                if x < 76:
+                    itm = Item(self.player.inventory, 'shld', 'rare', 10)
+                else:
+                    itm = Item(self.player.inventory, 'shld', 'epic', 10)
+            if y == 5:
+                if x < 76:
+                    itm = Item(self.player.inventory, 'armr', 'rare', 10)
+                else:
+                    itm = Item(self.player.inventory, 'armr', 'epic', 10)
+        else:
+            if y == 1:
+                if x < 66:
+                    itm = Item(self.player.inventory, 'accs', 'common', 10)
+                else:
+                    itm = Item(self.player.inventory, 'accs', 'uncommon', 10)
+
+            if y == 2:
+                if x < 61:
+                    itm = Item(self.player.inventory, 'weap', 'common', 10)
+                elif 60 < x < 95:
+                    itm = Item(self.player.inventory, 'weap', 'uncommon', 10)
+                else:
+                    itm = Item(self.player.inventory, 'weap', 'rare', 10)
+
+            if y == 3:
+                if x < 66:
+                    itm = Item(self.player.inventory, 'helm', 'rare', 10)
+                else:
+                    itm = Item(self.player.inventory, 'helm', 'epic', 10)
+            if y == 4:
+                if x < 66:
+                    itm = Item(self.player.inventory, 'shld', 'rare', 10)
+                else:
+                    itm = Item(self.player.inventory, 'shld', 'epic', 10)
+            if y == 5:
+                if x < 66:
+                    itm = Item(self.player.inventory, 'armr', 'rare', 10)
+                else:
+                    itm = Item(self.player.inventory, 'armr', 'epic', 10)
+        a.inv_lst.append(itm)
 
 
 class StatusBar(pygame.sprite.Sprite):
@@ -362,7 +466,7 @@ class StatusBar(pygame.sprite.Sprite):
         self.curr_mana = min(self.curr_mana, self.max_mana)
         self.curr_hp = min(self.curr_hp, self.max_hp)
         percent_hp = (self.curr_hp / self.max_hp * 100) // 1
-        percent_mana = (self.curr_hp / self.max_hp * 100) // 1
+        percent_mana = (self.curr_mana / self.max_mana * 100) // 1
         self.hp_bar = pygame.transform.scale(self.hp_bar, (percent_hp * 2, 12))
         self.mana_bar = pygame.transform.scale(self.mana_bar, (percent_mana * 2, 12))
 
@@ -389,23 +493,26 @@ class Block(pygame.sprite.Sprite):
 
 
 class Player(pygame.sprite.Sprite):
-    def __init__(self, group, gr, blocks, chests, x, y, level=1):
+    def __init__(self, group, mbs, gr, blocks, chests, x, y, level=1):
         super().__init__(group)
         self.col = self.row = 0
         self.font = pygame.font.Font('font/m6x11.ttf', 20)
         self.level = level
+        self.mobs = mbs
         self.ground = gr
         self.inventory = pygame.sprite.Group()
         self.inv_lst = []
         self.prev_dust = time.time()
         self.weapon = self.armor = self.accessory = self.shield = self.helmet = None
-        self.weap_r = pygame.Rect(440, 480 ,31 ,31)
+        self.weap_r = pygame.Rect(440, 480, 31, 31)
         self.armr_r = pygame.Rect(542, 480, 31, 31)
         self.accs_r = pygame.Rect(644, 480, 31, 31)
         self.shld_r = pygame.Rect(491, 480, 31, 31)
         self.helm_r = pygame.Rect(593, 480, 31, 31)
-        itm = Item(self.inventory, 'weap', 'common', 10)
-        itm2 = Item(self.inventory, 'armr', 'legendary', 10)
+        self.curr_item_info = []
+        self.prev_att_state = False
+        itm = Item(self.inventory, 'weap', 'epic', 10)
+        itm2 = Item(self.inventory, 'weap', 'legendary', 10)
         self.inv_lst.append(itm)
         self.inv_lst.append(itm2)
         self.rect = pygame.Rect(300, 300, 25, 25)
@@ -415,24 +522,34 @@ class Player(pygame.sprite.Sprite):
         self.selection_line = pygame.transform.scale(self.selection_line, (48, 48))
         self.sel_rect = pygame.Rect(435, 142, 70, 70)
         self.curr_hp = 100
-        self.prev_enter_press = time.time()
+        self.is_blocking = False
         self.curr_mana = 100
+        self.dmg = 10
+        self.prev_enter_press = time.time()
+        self.prev_att_time = time.time()
         self.prev_esc_press = time.time()
         self.max_hp = 100
         self.curr_choice = 0
-        self.two_choices = False
         self.max_mana = 100
         self.blocks = blocks
         self.chests = chests
+        self.two_choices = False
         self.is_idle = True
         self.is_running = False
         self.is_sprinting = False
         self.inventory_opened = False
-        self.inventory_image = load_image('sprites/inv/inventory.png', colorkey= (255, 255, 255))
+        self.is_fighting = False
+        self.is_attacking = False
+        self.attack_end = False
+        self.inventory_image = load_image('sprites/inv/inventory.png', colorkey=(255, 255, 255))
         self.curr_frame = 0
         self.x = x
         self.y = y
         self.direction = 1
+        self.attack_frames = ['sprites/player_attack/attack1.png',
+                              'sprites/player_attack/attack2.png',
+                              'sprites/player_attack/attack3.png'
+                              ]
         self.running_anim = ['sprites/running_anim/moving1',
                              'sprites/running_anim/moving2',
                              'sprites/running_anim/moving3',
@@ -447,17 +564,48 @@ class Player(pygame.sprite.Sprite):
                           'sprites/idle_anim/idle5',
                           'sprites/idle_anim/idle6']
 
-    def draw(self, dest, camera):
-        dest.blit(self.image, camera.move(self.rect))
-        if self.inventory_opened:
-            self.inventory_rect.right = min(camera.move(self.inventory_rect).right, 1600)
-            dest.blit(self.inventory_image, self.inventory_rect)
-
-
-    def update(self, lft, rght, tp, bt, shift, opening, inv, c_i):
+    def update(self, lft, rght, tp, bt, shift, opening, inv, c_i, att):
         if not self.inventory_opened:
-
             self.prev = [self.is_running, self.is_idle]
+
+            if self.is_fighting:
+                if rght and time.time() - self.prev_x_change > 0.3:
+                    self.c_f = min(self.c_f + 1, 2)
+                    self.prev_x_change = time.time()
+                if lft and time.time() - self.prev_x_change > 0.3:
+                    self.c_f = max(self.c_f - 1, 0)
+                    self.prev_x_change = time.time()
+                if opening and time.time() - self.prev_enter_press > 0.3:
+                    self.prev_enter_press = time.time()
+                    self.make_action()
+                if not self.is_attacking:
+                    self.attack_end = True
+                self.is_idle = True
+                self.is_running = False
+                self.play_anim(self.is_attacking)
+                return
+
+            if att and time.time() - self.prev_att_time > 1 and not self.is_fighting:
+                self.is_attacking = True
+                self.curr_frame = 0
+                self.prev_att_time = time.time()
+
+            if self.is_attacking:
+                self.play_anim(self.is_attacking)
+                return
+
+            check_rect = self.rect.copy()
+            check_rect.x -= 8
+            check_rect.y -= 8
+            check_rect.width += 16
+            check_rect.height += 16
+            for mob in self.mobs:
+                if mob.hitbox.colliderect(check_rect) and self.attack_end:
+                    self.mem_rect = self.rect.copy()
+                    self.mob_mem_rect = mob.rect.copy()
+                    self.fight(mob)
+                    self.attack_end = False
+                    return
 
             if inv:
                 self.open_inventory()
@@ -467,6 +615,7 @@ class Player(pygame.sprite.Sprite):
 
             self.is_sprinting = False
             xs, ys = 0, 0
+
             if lft:
                 xs -= 2
 
@@ -581,7 +730,6 @@ class Player(pygame.sprite.Sprite):
                         else:
                             self.curr_item_info = []
 
-
             if rght:
                 if self.two_choices:
                     pass
@@ -691,13 +839,21 @@ class Player(pygame.sprite.Sprite):
                 x_of_rect = self.rect.left - 8 if self.direction == 1 else self.rect.right - 8
                 dust = Dust(self.ground, x_of_rect, a.rect.bottom - 12)
                 self.prev_dust = time.time()
+        self.attack_end = False
+        self.play_anim(a.is_attacking)
 
-        self.play_anim()
-
-    def play_anim(self):
+    def play_anim(self, is_att=False):
         self.curr_frame = 0 if [self.is_running, self.is_idle] != self.prev else self.curr_frame
+        self.curr_frame = 0 if is_att and not self.prev_att_state else self.curr_frame
+        if is_att:
+            self.image = pygame.transform.scale(load_image(self.attack_frames[int(self.curr_frame)]), (96, 48))
+            self.image = pygame.transform.flip(self.image, True, False) if self.direction == -1 else self.image
+            self.curr_frame += 0.1
+            if self.curr_frame >= len(self.attack_frames):
+                self.is_attacking = False
+                self.attack_end = True
 
-        if self.is_idle:
+        elif self.is_idle:
             self.image = pygame.transform.scale(load_image(self.idle_anim[int(self.curr_frame)] + '.png'), (48, 48))
             if self.direction == -1:
                 self.image = pygame.transform.flip(self.image, True, False)
@@ -705,13 +861,14 @@ class Player(pygame.sprite.Sprite):
             if self.curr_frame >= len(self.idle_anim):
                 self.curr_frame = 0
 
-        if self.is_running:
+        elif self.is_running:
             self.image = pygame.transform.scale(load_image(self.running_anim[int(self.curr_frame)] + '.png'), (48, 48))
             if self.direction == -1:
                 self.image = pygame.transform.flip(self.image, True, False)
             self.curr_frame += 0.1 * (1.5 if self.is_sprinting else 1)
             if self.curr_frame >= len(self.running_anim):
                 self.curr_frame = 0
+        self.prev_att_state = is_att
 
     def open_inventory(self):
         self.two_choices = False
@@ -727,6 +884,7 @@ class Player(pygame.sprite.Sprite):
     def draw_desc(self, dest):
         if self.curr_item_info:
             text_coord = 320
+            self.font = pygame.font.Font('font/m6x11.ttf', 20)
             for line in self.curr_item_info:
                 string_rendered = self.font.render(line, 1, pygame.Color('white'))
                 intro_rect = string_rendered.get_rect()
@@ -734,7 +892,91 @@ class Player(pygame.sprite.Sprite):
                 intro_rect.top = text_coord
                 intro_rect.x = 440
                 text_coord += intro_rect.height
+                if 'Rarity:' in line:
+                    if 'Common' in line:
+                        string_rendered = self.font.render(line, 1, pygame.Color('white'))
+                    elif 'Rare' in line:
+                        string_rendered = self.font.render(line, 1, pygame.Color('blue'))
+                    elif 'Uncommon' in line:
+                        string_rendered = self.font.render(line, 1, pygame.Color('green'))
+                    elif 'Epic' in line:
+                        string_rendered = self.font.render(line, 1, pygame.Color('purple'))
+                    elif 'Legendary' in line:
+                        string_rendered = self.font.render(line, 1, pygame.Color('orange'))
                 dest.blit(string_rendered, intro_rect)
+
+    def fight(self, mob):
+        self.blocking = False
+        self.attack_end = False
+        self.is_fighting = True
+        self.c_f = 0
+        self.target = mob
+        self.bg = load_image('fight_bg/background.png')
+        self.rect = pygame.Rect(300, 290, 1, 1)
+        self.bg_rect = pygame.Rect(0, 0, 800, 600)
+        self.prev = [False, True]
+        self.is_running = False
+        self.is_idle = True
+        self.direction = 1
+        self.target.rect = pygame.Rect(500, 235, 1, 1)
+        self.target.rect_cp = self.target.rect.copy()
+        self.turn = 1
+
+    def draw_actions(self, scr):
+        self.font = pygame.font.Font('font/m6x11.ttf', 70)
+        actions_rect = pygame.Rect(0, 525, 800, 75)
+        pygame.draw.rect(scr, pygame.Color('grey'), actions_rect)
+        actions_rect.y += 2
+        actions_rect.x += 5
+        string_rendered = self.font.render('Attack        Block        Run', 1, pygame.Color('white'))
+        scr.blit(string_rendered, actions_rect)
+        if self.c_f == 0:
+            self.underline = pygame.Rect(5, 580, 182, 10)
+        elif self.c_f == 1:
+            self.underline = pygame.Rect(365, 580, 135, 10)
+        elif self.c_f == 2:
+            self.underline = pygame.Rect(680, 580, 90, 10)
+        pygame.draw.rect(scr, pygame.Color('white'), self.underline)
+
+    def make_action(self):
+        action = 'run' if self.c_f == 2 else 'block' if self.c_f == 1 else 'attack'
+        if action == 'run' and self.turn == 1:
+            self.is_fighting = False
+            if len(self.inv_lst) != 0:
+                random_item = random.choice(self.inv_lst)
+                self.inv_lst.remove(random_item)
+            self.rect = self.mem_rect
+            self.target.rect = self.mob_mem_rect
+            self.target.rect_cp = self.target.rect.copy()
+            self.target = None
+        elif action == 'attack' and self.turn == 1 and not self.is_attacking:
+            self.curr_frame = 0
+            self.is_attacking = True
+            dealt_dmg = random.randint((self.dmg * 0.85) // 1, (self.dmg * 1.15) // 1)
+            self.target.hp -= dealt_dmg
+            if self.target.hp <= 0 and self.attack_end:
+                self.is_fighting = False
+                self.attack_end = False
+                self.mobs.remove(self.target)
+                self.blocks.remove(self.target)
+                self.target.kill()
+                self.target = None
+                self.rect = self.mem_rect
+            self.turn = -1
+        elif action == 'block':
+            self.is_blocking = True
+            self.turn = -1
+
+    def enemy_attack(self):
+        if self.turn == -1:
+            self.target.is_att_now = True
+            a = self.target.animate(self.target.is_att_now)
+            if a is not None:
+                self.turn = 1
+                self.target.is_att_now = False
+                self.enemy_dmg = self.target.dmg
+                self.end_dmg = random.randint((self.enemy_dmg * 0.85) // 1, (self.enemy_dmg * 1.15) // 1)
+                self.curr_hp -= self.end_dmg
 
 
 class GroundDecor(pygame.sprite.Sprite):
@@ -755,23 +997,44 @@ class Enemy(pygame.sprite.Sprite):
     def __init__(self, group, x, y, name):
         super(Enemy, self).__init__(group)
         self.rect = pygame.Rect(x, y, 72, 72)
+        self.prev_att_state = False
+        self.is_att_now = False
         self.hitbox = self.rect.copy()
+        self.rect_cp = self.rect.copy()
         self.hitbox.y += 48
         self.hitbox.x += 16
         self.hitbox.height -= 48
         self.hitbox.width -= 16
         self.curr_frame = 0
+        self.hp = 50
+        self.dmg = 5
         if name == 'skeleton':
             self.frames = [load_image(f"sprites/skeleton/skeleton{i}.png") for i in range(1, 7)]
+            self.att_frames = [load_image(f"sprites/skeleton/skele_attack{i}.png") for i in range(1, 6)]
             self.image = self.frames[self.curr_frame]
         self.image = pygame.transform.scale(self.image, (96, 96))
 
-    def animate(self):
-        self.image = self.frames[int(self.curr_frame)]
-        self.curr_frame += 0.1
-        if self.curr_frame >= len(self.frames):
-            self.curr_frame = 0
+    def animate(self, is_att=False):
+        self.curr_frame = 0 if is_att and not self.prev_att_state else self.curr_frame
+        if is_att:
+            self.image = self.att_frames[int(self.curr_frame)]
+            self.curr_frame += 0.08
+            if self.curr_frame >= len(self.att_frames):
+                return 'end_of_att'
+        else:
+            self.image = self.frames[int(self.curr_frame)]
+            self.curr_frame += 0.1
+            if self.curr_frame >= len(self.frames):
+                self.curr_frame = 0
         self.image = pygame.transform.scale(self.image, (96, 96))
+        if int(self.curr_frame) == 3 and self.is_att_now:
+            self.image = pygame.transform.scale(self.image, (196, 196))
+            self.rect = self.rect_cp.copy()
+            self.rect.x -= 100
+            self.rect.y -= 100
+        else:
+            self.rect = self.rect_cp.copy()
+        self.prev_att_state = is_att
 
     def draw(self, dest):
         dest.blit(self.image, self.rect)
@@ -781,10 +1044,12 @@ if __name__ == '__main__':
     blocks = []
     chests = []
     all_groups = []
-    is_intro = True
+    mobs = []
     player = pygame.sprite.Group()
     ground = pygame.sprite.Group()
     entities = pygame.sprite.Group()
+    a = Player(player, mobs, ground, blocks, chests, 50, 70)
+    c = Camera(a)
     g = Ground(ground)
     with open('data/plain.txt', 'r', encoding='utf-8') as file:
         file = file.readlines()
@@ -794,11 +1059,11 @@ if __name__ == '__main__':
                     tree = Block(entities, j * 32, i * 32)
                     blocks.append(tree)
                 elif file[i][j] == '*':
-                    chest = Chest(entities, j * 32, i * 32, 0)
+                    chest = Chest(entities, j * 32, i * 32, 0, a)
                     blocks.append(chest)
                     chests.append(chest)
                 elif file[i][j] == '&':
-                    chest = Chest(entities, j * 32, i * 32, 1)
+                    chest = Chest(entities, j * 32, i * 32, 1, a)
                     blocks.append(chest)
                     chests.append(chest)
                 elif file[i][j] == '(':
@@ -842,10 +1107,9 @@ if __name__ == '__main__':
                 elif file[i][j] == '$':
                     skelet = Enemy(entities, j * 32, i * 32, 'skeleton')
                     blocks.append(skelet)
+                    mobs.append(skelet)
 
     running = True
-    a = Player(player, ground, blocks, chests, 50, 70)
-    c = Camera(a)
     gui = pygame.sprite.Group()
     hpbar = StatusBar(gui, a)
     all_groups.append(player)
@@ -855,7 +1119,7 @@ if __name__ == '__main__':
         for event in pygame.event.get():
             if event.type == FRAME:
                 order = []
-                bot = right = left = top = accel = openn = inventory = close_inv = False
+                bot = right = left = top = accel = openn = inventory = close_inv = at = False
                 pressed_keys = pygame.key.get_pressed()
                 for sprite in ground:
                     if isinstance(sprite, Dust):
@@ -879,7 +1143,9 @@ if __name__ == '__main__':
                     inventory = True
                 if pressed_keys[pygame.K_ESCAPE]:
                     close_inv = True
-                player.update(left, right, top, bot, accel, openn, inventory, close_inv)
+                if pressed_keys[pygame.K_z]:
+                    at = True
+                player.update(left, right, top, bot, accel, openn, inventory, close_inv, at)
                 for chest in chests:
                     chest.update()
                 for block in blocks:
@@ -907,8 +1173,11 @@ if __name__ == '__main__':
                 c.update()
                 for sprite in entities:
                     try:
-                        sprite.animate()
-                    except:
+                        if isinstance(sprite, Enemy):
+                            sprite.animate(sprite.is_att_now)
+                        else:
+                            sprite.animate()
+                    except Exception:
                         pass
                 for sprite in gui:
                     sprite.update()
@@ -929,6 +1198,14 @@ if __name__ == '__main__':
                     if a.helmet is not None:
                         screen.blit(a.helmet.image, a.helm_r)
                     a.draw_desc(screen)
+                if a.is_fighting:
+                    screen.blit(a.bg, a.bg_rect)
+                    screen.blit(a.image, a.rect)
+                    a.target.image = pygame.transform.flip(a.target.image, True, False)
+                    a.target.draw(screen)
+                    a.draw_actions(screen)
+                    hpbar.draw(screen)
+                    a.enemy_attack()
                 pygame.display.update()
             if event.type == pygame.QUIT:
                 pygame.quit()
