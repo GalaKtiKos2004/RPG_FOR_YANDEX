@@ -7,6 +7,8 @@ import sqlite3
 
 con = sqlite3.connect("inventory.sqlite3")
 cur = con.cursor()
+con1 = sqlite3.connect("save.sqlite3")
+cur1 = con1.cursor()
 
 pygame.init()
 FPS = 60
@@ -71,12 +73,14 @@ class Item(pygame.sprite.Sprite):
     armor_sprites = [load_image(f"sprites/armor/Item__{i}.png") for i in range(56, 60)]
     shield_sprites = [load_image(f"sprites/shields/Item__{i}.png") for i in range(24, 28)]
 
-    def __init__(self, group, type, rarity, lvl):
+    def __init__(self, group, type, rarity, lvl, direct=False):
         super().__init__(group)
         self.type = type
+        self.direct = direct
         self.coef = 0
         self.level = lvl
         self.rank = rarity
+        self.image_direct = ''
         self.bonus = 1
         self.rank_int = ['common', 'uncommon', 'rare', 'epic', 'legendary'].index(self.rank) + 1
         if self.type == 'weap':
@@ -85,30 +89,55 @@ class Item(pygame.sprite.Sprite):
             self.random_stat = 0
 
             if self.rank in ['epic', 'legendary']:
-                result = cur.execute("""select direct, rare, damage from weapons
-                where rare = 'el'
-                order by damage""").fetchall()
-                result = random.choice(result)
-                image = load_image(result[0])
-                self.image = image
-                self.image = pygame.transform.scale(self.image, (40, 40))
-                self.random_stat = self.level * self.rank_int // 4
-                self.stat_type = random.choice(['Strength', 'Agility'])
-                self.end_dmg = result[2]
+                if direct:
+                    print("a")
+                    result = cur.execute(f"""select direct, rare, damage from weapons
+                                         where direct = '{direct}'
+                                         order by damage""").fetchall()
+                    self.image_direct = result[0][0]
+                    image = load_image(result[0][0])
+                    self.image = image
+                    self.image = pygame.transform.scale(self.image, (40, 40))
+                    self.end_dmg = result[0][2]
+                else:
+                     print("b")
+                     result = cur.execute("""select direct, rare, damage from weapons
+                     where rare = 'el'
+                     order by damage""").fetchall()
+                     result = random.choice(result)
+                     self.image_direct = result[0]
+                     image = load_image(result[0])
+                     self.image = image
+                     self.image = pygame.transform.scale(self.image, (40, 40))
+                     self.end_dmg = result[2]
             else:
-                result = cur.execute("""select direct, rare, damage from weapons
-                                where rare = 'cur'
-                                order by damage""").fetchall()
-                result = random.choice(result)
-                image = load_image(result[0])
-                self.image = image
-                self.image = pygame.transform.scale(self.image, (40, 40))
-                self.end_dmg = result[2]
+                if direct:
+                    print('c')
+                    result = cur.execute("""select direct, rare, damage from weapons
+                                                    where rare = 'cur'
+                                                    order by damage""").fetchall()
+                    self.image_direct = result[0][0]
+                    image = load_image(result[0][0])
+                    self.image = image
+                    self.image = pygame.transform.scale(self.image, (40, 40))
+                    self.end_dmg = result[2]
+                else:
+                    print('d')
+                    result = cur.execute("""select direct, rare, damage from weapons
+                                    where rare = 'cur'
+                                    order by damage""").fetchall()
+                    result = random.choice(result)
+                    self.image_direct = result[0]
+                    image = load_image(result[0])
+                    self.image = image
+                    self.image = pygame.transform.scale(self.image, (40, 40))
+                    self.end_dmg = result[2]
 
         elif self.type == 'accs':
             result = cur.execute(f"""select direct, coef from accessories
             where rare = '{self.rank}'
 order by coef""").fetchall()
+            self.image_direct = result[0][0]
             image = load_image(result[0][0])
             self.image = image
             self.image = pygame.transform.scale(self.image, (40, 40))
@@ -118,6 +147,7 @@ order by coef""").fetchall()
             result = cur.execute(f"""select direct, coef from helmets
                         where rare = '{self.rank}'
             order by coef""").fetchall()
+            self.image_direct = result[0][0]
             image = load_image(result[0][0])
             self.image = image
             self.image = pygame.transform.scale(self.image, (40, 40))
@@ -127,6 +157,7 @@ order by coef""").fetchall()
             result = cur.execute(f"""select direct, coef from shields
                         where rare = '{self.rank}'
             order by coef""").fetchall()
+            self.image_direct = result[0][0]
             image = load_image(result[0][0])
             self.image = image
             self.image = pygame.transform.scale(self.image, (40, 40))
@@ -136,6 +167,7 @@ order by coef""").fetchall()
             result = cur.execute(f"""select direct, coef from armor
                         where rare = '{self.rank}'
             order by coef""").fetchall()
+            self.image_direct = result[0][0]
             image = load_image(result[0][0])
             self.image = image
             self.image = pygame.transform.scale(self.image, (40, 40))
@@ -379,63 +411,63 @@ class Chest(pygame.sprite.Sprite):
         if self.rank:
             if y == 1:
                 if x < 76:
-                    itm = Item(self.player.inventory, 'accs', 'rare', 10)
+                    itm = Item(self.player.inventory, 'accs', 'rare', self.player.level)
                 else:
-                    itm = Item(self.player.inventory, 'accs', 'epic', 10)
+                    itm = Item(self.player.inventory, 'accs', 'epic', self.player.level)
 
             if y == 2:
                 if x < 80:
-                    itm = Item(self.player.inventory, 'weap', 'rare', 10)
+                    itm = Item(self.player.inventory, 'weap', 'rare', self.player.level)
                 elif 80 < x < 98:
-                    itm = Item(self.player.inventory, 'weap', 'epic', 10)
+                    itm = Item(self.player.inventory, 'weap', 'epic', self.player.level)
                 else:
-                    itm = Item(self.player.inventory, 'weap', 'legendary', 10)
+                    itm = Item(self.player.inventory, 'weap', 'legendary', self.player.level)
 
             if y == 3:
                 if x < 76:
-                    itm = Item(self.player.inventory, 'helm', 'rare', 10)
+                    itm = Item(self.player.inventory, 'helm', 'rare', self.player.level)
                 else:
-                    itm = Item(self.player.inventory, 'helm', 'epic', 10)
+                    itm = Item(self.player.inventory, 'helm', 'epic', self.player.level)
             if y == 4:
                 if x < 76:
-                    itm = Item(self.player.inventory, 'shld', 'rare', 10)
+                    itm = Item(self.player.inventory, 'shld', 'rare', self.player.level)
                 else:
-                    itm = Item(self.player.inventory, 'shld', 'epic', 10)
+                    itm = Item(self.player.inventory, 'shld', 'epic', self.player.level)
             if y == 5:
                 if x < 76:
-                    itm = Item(self.player.inventory, 'armr', 'rare', 10)
+                    itm = Item(self.player.inventory, 'armr', 'rare', self.player.level)
                 else:
-                    itm = Item(self.player.inventory, 'armr', 'epic', 10)
+                    itm = Item(self.player.inventory, 'armr', 'epic', self.player.level)
         else:
             if y == 1:
                 if x < 66:
-                    itm = Item(self.player.inventory, 'accs', 'common', 10)
+                    itm = Item(self.player.inventory, 'accs', 'common', self.player.level)
                 else:
-                    itm = Item(self.player.inventory, 'accs', 'uncommon', 10)
+                    itm = Item(self.player.inventory, 'accs', 'uncommon', self.player.level)
 
             if y == 2:
                 if x < 61:
-                    itm = Item(self.player.inventory, 'weap', 'common', 10)
+                    itm = Item(self.player.inventory, 'weap', 'common', self.player)
                 elif 60 < x < 95:
-                    itm = Item(self.player.inventory, 'weap', 'uncommon', 10)
+                    itm = Item(self.player.inventory, 'weap', 'uncommon', self.player)
                 else:
-                    itm = Item(self.player.inventory, 'weap', 'rare', 10)
+                    itm = Item(self.player.inventory, 'weap', 'rare', self.player)
 
             if y == 3:
                 if x < 66:
-                    itm = Item(self.player.inventory, 'helm', 'rare', 10)
+                    itm = Item(self.player.inventory, 'helm', 'common', self.player)
                 else:
-                    itm = Item(self.player.inventory, 'helm', 'epic', 10)
+                    itm = Item(self.player.inventory, 'helm', 'uncommon', self.player)
             if y == 4:
                 if x < 66:
-                    itm = Item(self.player.inventory, 'shld', 'rare', 10)
+                    itm = Item(self.player.inventory, 'shld', 'common', self.player)
                 else:
-                    itm = Item(self.player.inventory, 'shld', 'epic', 10)
+                    itm = Item(self.player.inventory, 'shld', 'uncommon', self.player)
             if y == 5:
                 if x < 66:
-                    itm = Item(self.player.inventory, 'armr', 'rare', 10)
+                    itm = Item(self.player.inventory, 'armr', 'common', self.player)
                 else:
-                    itm = Item(self.player.inventory, 'armr', 'epic', 10)
+                    itm = Item(self.player.inventory, 'armr', 'uncommon', self.player)
         a.inv_lst.append(itm)
 
 
@@ -496,14 +528,32 @@ class Player(pygame.sprite.Sprite):
     def __init__(self, group, mbs, gr, blocks, chests, x, y, level=1):
         super().__init__(group)
         self.col = self.row = 0
+        self.deffence = 0
         self.font = pygame.font.Font('font/m6x11.ttf', 20)
-        self.level = level
+        self.level = cur1.execute("""select lvl from player""").fetchall()[0][0]
         self.mobs = mbs
         self.ground = gr
         self.inventory = pygame.sprite.Group()
         self.inv_lst = []
         self.prev_dust = time.time()
         self.weapon = self.armor = self.accessory = self.shield = self.helmet = None
+        result = cur1.execute(f"""select direct, is_equiped, name, rare from items""").fetchall()
+        print(result)
+        for i in result:
+            if i[1]:
+                if i[2] == 'weapon':
+                    self.weapon = Item(self.inventory, 'weapon', i[3], self.level, direct=i[0])
+                if i[2] == 'accs':
+                    self.accessory = Item(self.inventory, 'accs', i[3], self.level)
+                if i[2] == 'armr':
+                    self.armor = Item(self.inventory, 'armr', i[3], self.level)
+                if i[2] == 'shld':
+                    self.shield = Item(self.inventory, 'shld', i[3], self.level)
+                if i[2] == 'helm':
+                    self.helmet = Item(self.inventory, 'helmet', i[3], self.level)
+            else:
+                print('yes')
+                self.inv_lst.append(Item(self.inventory, i[2], i[3], self.level, direct=i[0]))
         self.weap_r = pygame.Rect(440, 480, 31, 31)
         self.armr_r = pygame.Rect(542, 480, 31, 31)
         self.accs_r = pygame.Rect(644, 480, 31, 31)
@@ -511,10 +561,6 @@ class Player(pygame.sprite.Sprite):
         self.helm_r = pygame.Rect(593, 480, 31, 31)
         self.curr_item_info = []
         self.prev_att_state = False
-        itm = Item(self.inventory, 'weap', 'epic', 10)
-        itm2 = Item(self.inventory, 'weap', 'legendary', 10)
-        self.inv_lst.append(itm)
-        self.inv_lst.append(itm2)
         self.rect = pygame.Rect(300, 300, 25, 25)
         self.prev_y_change = time.time()
         self.prev_x_change = time.time()
@@ -1208,5 +1254,17 @@ if __name__ == '__main__':
                     a.enemy_attack()
                 pygame.display.update()
             if event.type == pygame.QUIT:
+                cur1.execute("""delete from player""")
+                con1.commit()
+                cur1.execute("""delete from items""")
+                con1.commit()
+                cur1.execute(f"""insert into player
+                                VALUES (1, {a.level})""")
+                con1.commit()
+                for i in a.inv_lst:
+                    cur1.execute(f"""insert into items
+                    VALUES ('{i.image_direct}', '{i.type}', '{i.rank}')""")
+                    con1.commit()
+
                 pygame.quit()
                 sys.exit()
